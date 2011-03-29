@@ -1,21 +1,7 @@
-# Tools set depends on arch
-ifeq ($(shell arch), x86_64)
+include $(GOROOT)/src/Make.inc
 
-A=6
+TARG=gar
+GOFILES=\
+		main.go\
 
-else
-
-A=8
-
-endif
-
-GC=$(A)g
-GL=$(A)l
-
-all: gar
-
-gar: main.6
-	$(GL) -o $@ $<
-
-%.$(A): %.go
-	$(GC) $<
+include $(GOROOT)/src/Make.cmd
