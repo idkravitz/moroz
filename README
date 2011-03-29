@@ -1,0 +1,10 @@
+That is my programs, that I wrote during the 8 semestr of
+system programming (though there is not anything about systems).
+
+The projects are written in Go language (the archiver was previously
+written in Haskell -- see "har").
+
+The "gar" stands for Go archiver. And surprisingly its an archiver, that implements two algorithms:
+RLE and Huffman.
+
+The "drpn" stands for "deikstras reverse polish notation". Thats exactly what its sounds like. 
