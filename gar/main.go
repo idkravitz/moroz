@@ -27,12 +27,13 @@ func printUsage() {
     os.Exit(0)
 }
 
-func compress (name string, method CompressionMethod) os.Error {
-    file, ok := os.Open(name, os.O_RDONLY, 0777)
-    if ok != nil {
-        return ok
+func compress (name string, method CompressionMethod) (err os.Error) {
+    file, err := os.Open(name, os.O_RDONLY, 0777)
+    if err != nil {
+        return
     }
-    return nil // no error
+    defer file.Close()
+    return
 }
 
 func main() {
@@ -43,6 +44,11 @@ func main() {
         printUsage()
     }
     for _,name := range flag.Args() {
+        err := compress(name, RLECompress)
+        if err != nil {
+            fmt.Println(err)
+            os.Exit(1)
+        }
         //fmt.Println(name)
     }
 }
