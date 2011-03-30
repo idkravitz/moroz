@@ -40,6 +40,7 @@ func compressRLE(in *bufio.Reader, out *bufio.Writer) {
         out.WriteByte(prev)
     }
     var count byte = 0
+    overflow := false
     for {
         n, ok := in.Read(buff[:])
         if ok == os.EOF {
@@ -47,20 +48,21 @@ func compressRLE(in *bufio.Reader, out *bufio.Writer) {
         }
         for _,v := range buff[:n] {
             switch {
-            case v == prev:
+            case v == prev && !overflow:
                 count++
                 if count != 255 {
                     break
                 }
                 rleCompressedWrite(prev, count, out)
                 count = 0
-                prev = (v + 1) % 255
+                overflow = true
             case count != 0:
                 rleCompressedWrite(prev, count, out)
                 count = 0
                 fallthrough
             default:
                 out.WriteByte(v)
+                overflow = false
                 prev = v
             }
         }
@@ -99,7 +101,7 @@ func extractRLE(in *bufio.Reader, out *bufio.Writer) (error os.Error) {
     return
 }
 
-func extract(in *buffio.Reader, method CompressionMethod) (err os.Error) {
+/*func extract(in *buffio.Reader, method CompressionMethod) (err os.Error) {
     file, err := os.Open(name, os.O_RDONLY, 0777)
     if err != nil {
         return
@@ -110,7 +112,7 @@ func extract(in *buffio.Reader, method CompressionMethod) (err os.Error) {
         compressRLE(rd, out)
     }
     return
-}
+}*/
 
 func compress (in *bufio.Reader, out *bufio.Writer, method CompressionMethod) {
     if method == RLECompress {
@@ -153,11 +155,11 @@ func main() {
         handleError(err)
         defer file.Close()
         in := bufio.NewReader(file)
-        if useCompress {
-            err := compress(name, RLECompress, out)
+        if *useCompress {
+            compress(in, out, RLECompress)
         } else {
-            err := extract(name, RLECompress, out)
+            err := extractRLE(in, out)
+            handleError(err)
         }
-        handleError(err)
     }
 }
