@@ -5,6 +5,7 @@ import (
     "bufio"
     "fmt"
     "flag"
+    "rle"
 )
 
 var (
@@ -12,7 +13,7 @@ var (
     useHuffman = flag.Bool("h", false, "use Huffman compression")
     useCompress = flag.Bool("c", false, "compress")
     useExtract = flag.Bool("x", false, "extract")
-    outputName = flag.String("f", "-", "set output file (default is \"-\" -- stdin)")
+    outputName = flag.String("f", "-", "set output file (default is \"-\" -- stdout)")
 )
 
 const (
@@ -26,79 +27,6 @@ type CompressionMethod int
 func printUsage() {
     flag.Usage()
     os.Exit(0)
-}
-
-func rleCompressedWrite(b byte, c byte, out *bufio.Writer) {
-    out.WriteByte(b)
-    out.WriteByte(c)
-}
-
-func compressRLE(in *bufio.Reader, out *bufio.Writer) {
-    var buff [512]byte
-    prev,err := in.ReadByte()
-    if err == nil {
-        out.WriteByte(prev)
-    }
-    var count byte = 0
-    overflow := false
-    for {
-        n, ok := in.Read(buff[:])
-        if ok == os.EOF {
-            break
-        }
-        for _,v := range buff[:n] {
-            switch {
-            case v == prev && !overflow:
-                count++
-                if count != 255 {
-                    break
-                }
-                rleCompressedWrite(prev, count, out)
-                count = 0
-                overflow = true
-            case count != 0:
-                rleCompressedWrite(prev, count, out)
-                count = 0
-                fallthrough
-            default:
-                out.WriteByte(v)
-                overflow = false
-                prev = v
-            }
-        }
-    }
-}
-
-func extractRLE(in *bufio.Reader, out *bufio.Writer) (error os.Error) {
-    error = nil
-    var buff [512]byte
-    var match bool = false
-    prev,err := in.ReadByte()
-    if err == nil {
-        out.WriteByte(prev)
-    }
-    for {
-        n, ok := in.Read(buff[:])
-        if ok == os.EOF {
-            if match {
-                error = os.NewError("Corrupted archive")
-            }
-            break
-        }
-        for _,v := range buff[:n] {
-            if match {
-                for ; v > 1; v-- {
-                    out.WriteByte(prev)
-                }
-                match = false
-            } else {
-                out.WriteByte(v)
-                match = prev == v
-                prev = v
-            }
-        }
-    }
-    return
 }
 
 /*func extract(in *buffio.Reader, method CompressionMethod) (err os.Error) {
@@ -116,7 +44,7 @@ func extractRLE(in *bufio.Reader, out *bufio.Writer) (error os.Error) {
 
 func compress (in *bufio.Reader, out *bufio.Writer, method CompressionMethod) {
     if method == RLECompress {
-        compressRLE(in, out)
+       rle.Compress(in, out)
     }
 }
 
@@ -128,6 +56,11 @@ func handleError(err os.Error) {
 }
 
 func main() {
+    defer func() {
+        if error := recover(); error != nil {
+            fmt.Printf("Error: %s", error)
+        }
+    }()
     flag.Parse()
     if flag.NArg() == 0 ||
         (!*useCompress && !*useExtract || *useCompress && *useExtract) ||
@@ -141,8 +74,7 @@ func main() {
     } else {
         file, err := os.Open(*outputName, os.O_CREATE | os.O_WRONLY | os.O_TRUNC, 0666)
         if err != nil {
-            fmt.Println(err)
-            os.Exit(1)
+            panic(err)
         }
         out = bufio.NewWriter(file)
         defer func() {
@@ -152,14 +84,15 @@ func main() {
     }
     for _, name := range flag.Args() {
         file, err := os.Open(name, os.O_RDONLY, 0777)
-        handleError(err)
+        if err != nil {
+            panic(err)
+        }
         defer file.Close()
         in := bufio.NewReader(file)
         if *useCompress {
             compress(in, out, RLECompress)
         } else {
-            err := extractRLE(in, out)
-            handleError(err)
+            rle.Extract(in, out)
         }
     }
 }
