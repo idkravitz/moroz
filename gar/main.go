@@ -55,14 +55,12 @@ func compress (in *os.File, out *os.File, method CompressionMethod) {
 
 func extract (in *os.File, out *os.File, method CompressionMethod) {
     var act func(*os.File, *os.File) int64;
-    beginPos, err := in.Seek(0, 1)
-    PanicIf(err)
     if method == RLECompress {
         act = rle.Extract
     } else {
         act = huffman.Extract
     }
-    in.Seek(beginPos + act(in, out), 0)
+    in.Seek(act(in, out), 0)
     fmt.Println("seek")
 }
 
@@ -76,6 +74,7 @@ func getCompressionMethod() CompressionMethod {
 func isEOF(fin *os.File) bool {
     pos, err := fin.Seek(0, 1)
     PanicIf(err)
+    fmt.Printf("%d/%d", pos, GetFileSize(fin))
     return pos == GetFileSize(fin)
 }
 
@@ -109,6 +108,7 @@ func main() {
         in, err = os.Open(name, os.O_RDONLY, 0777)
         PanicIf(err)
         if *useCompress {
+            fmt.Print("Encoded")
             PanicIf(gob.NewEncoder(out).Encode(commonMeta{name}))
             compress(in, out, getCompressionMethod())
         } else {
@@ -120,6 +120,7 @@ func main() {
                 fmt.Print("cmeta")
                 PanicIf(gob.NewDecoder(in).Decode(&cmeta))
                 out, err = os.Open(cmeta.Name, os.O_CREATE | os.O_WRONLY | os.O_TRUNC, 0666)
+                defer out.Close()
                 PanicIf(err)
                 extract(in, out, hmeta.Method)
             }

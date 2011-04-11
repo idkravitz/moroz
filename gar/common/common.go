@@ -13,3 +13,9 @@ func GetFileSize(fobj *os.File) int64 {
     PanicIf(error)
     return fileinfo.Size
 }
+
+func GetSeek(fd *os.File) int64 {
+    pos, err := fd.Seek(0, 1)
+    PanicIf(err)
+    return pos
+}

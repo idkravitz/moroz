@@ -2,6 +2,7 @@ package huffman
 
 import (
     "os"
+    "fmt"
     "gob"
     "bufio"
     "container/heap"
@@ -90,6 +91,7 @@ func serializeMetaInfo(fin, fout *os.File, cb []cbRecord) {
         meta.Cb[k] = v
     }
     meta.Fsize = GetFileSize(fin)
+    fmt.Println(meta.Fsize)
     PanicIf(gob.NewEncoder(fout).Encode(meta))
 }
 
@@ -113,6 +115,7 @@ func Compress(fin, fout *os.File) {
     makeCodeBook(tree, 0, 0, cb[:])
 
     serializeMetaInfo(fin, fout, cb[:])
+    fmt.Println(GetSeek(fout))
 
     // encode
     var (
@@ -159,22 +162,24 @@ func deserializeMetaInfo(fin, fout *os.File) (int64, decodeBook) {
     return meta.Fsize, db
 }
 
-func Extract(fin, fout *os.File) (readBytes int64) {
+func Extract(fin, fout *os.File) int64 {
     var (
         code, code_len uint = 0, 0
         outptr *dbRecord= nil
-        cursize int64 = 0
+        cursize, readBytes int64 = 0, 0
     )
     filesize, db := deserializeMetaInfo(fin, fout)
+    pos := GetSeek(fout)
+    fmt.Print(pos)
 
     in := bufio.NewReader(fin)
     out := bufio.NewWriter(fout)
     defer out.Flush()
-    readBytes = 0
 
-    for cursize <= filesize {
+    for cursize < filesize {
         curr, error := in.ReadByte()
         if error != nil {
+            fmt.Print("break")
             break
         }
         readBytes++
@@ -191,5 +196,7 @@ func Extract(fin, fout *os.File) (readBytes int64) {
             }
         }
     }
-    return readBytes
+    fmt.Println(pos)
+    fmt.Println(readBytes)
+    return pos + readBytes
 }

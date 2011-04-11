@@ -2,8 +2,8 @@ package rle
 
 import (
     "os"
-    "gob"
     "fmt"
+    "gob"
     "bufio"
 )
 
@@ -22,6 +22,8 @@ func Compress(fin *os.File, fout *os.File) {
     var error os.Error = nil
 
     PanicIf(gob.NewEncoder(fout).Encode(rleMeta{GetFileSize(fin)}))
+    fmt.Println(GetSeek(fin))
+
     in := bufio.NewReader(fin)
     out := bufio.NewWriter(fout)
     defer out.Flush()
@@ -51,20 +53,19 @@ func Compress(fin *os.File, fout *os.File) {
     }
 }
 
-func Extract(fin *os.File, fout *os.File) (readBytes int64) {
+func Extract(fin *os.File, fout *os.File) int64 {
     var (
         curr, prev byte = 0, 0
         found, valid_prev bool = false, true
         error os.Error = nil
-        cursize int64 = 0
+        cursize, readBytes int64 = 0, 0
     )
     var rmeta rleMeta
     PanicIf(gob.NewDecoder(fin).Decode(&rmeta))
-    fmt.Print("pan")
+    pos := GetSeek(fin)
     in := bufio.NewReader(fin)
     out := bufio.NewWriter(fout)
     defer out.Flush()
-    readBytes = 0
     for cursize < rmeta.Size {
         curr, error = in.ReadByte()
         if error != nil {
@@ -89,5 +90,5 @@ func Extract(fin *os.File, fout *os.File) (readBytes int64) {
             valid_prev = true
         }
     }
-    return readBytes
+    return pos + readBytes
 }
