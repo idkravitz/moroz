@@ -2,13 +2,30 @@ package rle
 
 import (
     "os"
+    "gob"
+    "fmt"
     "bufio"
 )
 
-func Compress(in *bufio.Reader, out *bufio.Writer) {
+import . "common"
+
+type (
+    rleMeta struct {
+        Size int64
+    }
+)
+
+
+func Compress(fin *os.File, fout *os.File) {
     var curr, prev, count byte = 0, 0, 0
     found := false
     var error os.Error = nil
+
+    PanicIf(gob.NewEncoder(fout).Encode(rleMeta{GetFileSize(fin)}))
+    in := bufio.NewReader(fin)
+    out := bufio.NewWriter(fout)
+    defer out.Flush()
+
     for {
         curr, error = in.ReadByte()
         if error != nil {
@@ -34,13 +51,21 @@ func Compress(in *bufio.Reader, out *bufio.Writer) {
     }
 }
 
-func Extract(in *bufio.Reader, out *bufio.Writer) {
+func Extract(fin *os.File, fout *os.File) (readBytes int64) {
     var (
         curr, prev byte = 0, 0
         found, valid_prev bool = false, true
         error os.Error = nil
+        cursize int64 = 0
     )
-    for error != os.EOF {
+    var rmeta rleMeta
+    PanicIf(gob.NewDecoder(fin).Decode(&rmeta))
+    fmt.Print("pan")
+    in := bufio.NewReader(fin)
+    out := bufio.NewWriter(fout)
+    defer out.Flush()
+    readBytes = 0
+    for cursize < rmeta.Size {
         curr, error = in.ReadByte()
         if error != nil {
             if found {
@@ -48,17 +73,21 @@ func Extract(in *bufio.Reader, out *bufio.Writer) {
             }
             break
         }
+        readBytes++
         if found {
+            cursize += int64(curr)
             for ; curr > 0; curr-- {
                 out.WriteByte(prev)
             }
-            found = false
             valid_prev = false
+            found = false
         } else {
+            cursize++
             out.WriteByte(curr)
             found = curr == prev && valid_prev
             prev = curr
             valid_prev = true
         }
     }
+    return readBytes
 }

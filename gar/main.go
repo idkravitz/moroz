@@ -2,11 +2,17 @@ package main
 
 import (
     "os"
-    "bufio"
+    "gob"
     "fmt"
     "flag"
-    "rle"
 )
+
+import (
+    "./rle"
+    "./huffman"
+)
+
+import . "common"
 
 var (
     useRLE = flag.Bool("r", false, "use RLE compression")
@@ -22,37 +28,55 @@ const (
     RLECompress
 )
 
-type CompressionMethod int
+type (
+    CompressionMethod int
+    headerMeta struct {
+        Method CompressionMethod
+    }
+    commonMeta struct {
+        Name string
+    }
+)
 
 func printUsage() {
     flag.Usage()
     os.Exit(0)
 }
 
-/*func extract(in *buffio.Reader, method CompressionMethod) (err os.Error) {
-    file, err := os.Open(name, os.O_RDONLY, 0777)
-    if err != nil {
-        return
-    }
-    defer file.Close()
-    rd := bufio.NewReader(file)
+func compress (in *os.File, out *os.File, method CompressionMethod) {
+    var act func(*os.File, *os.File);
     if method == RLECompress {
-        compressRLE(rd, out)
+        act = rle.Compress
+    } else {
+        act = huffman.Compress
     }
-    return
-}*/
-
-func compress (in *bufio.Reader, out *bufio.Writer, method CompressionMethod) {
-    if method == RLECompress {
-       rle.Compress(in, out)
-    }
+    act(in, out)
 }
 
-func handleError(err os.Error) {
-    if err != nil {
-        fmt.Println(err)
-        os.Exit(1)
+func extract (in *os.File, out *os.File, method CompressionMethod) {
+    var act func(*os.File, *os.File) int64;
+    beginPos, err := in.Seek(0, 1)
+    PanicIf(err)
+    if method == RLECompress {
+        act = rle.Extract
+    } else {
+        act = huffman.Extract
     }
+    in.Seek(beginPos + act(in, out), 0)
+    fmt.Println("seek")
+}
+
+func getCompressionMethod() CompressionMethod {
+    if *useRLE {
+        return RLECompress
+    }
+    return HuffmanCompress
+}
+
+func isEOF(fin *os.File) bool {
+    pos, err := fin.Seek(0, 1)
+    PanicIf(err)
+    return pos == GetFileSize(fin)
 }
 
 func main() {
@@ -61,38 +85,45 @@ func main() {
             fmt.Printf("Error: %s", error)
         }
     }()
+
+    var err os.Error
+    var in, out *os.File
     flag.Parse()
     if flag.NArg() == 0 ||
         (!*useCompress && !*useExtract || *useCompress && *useExtract) ||
         (!*useHuffman  && !*useRLE     || *useHuffman  && *useRLE) {
         printUsage()
     }
-    var out *bufio.Writer
-    if *outputName == "-" {
-        out = bufio.NewWriter(os.Stdout)
-        defer out.Flush()
-    } else {
-        file, err := os.Open(*outputName, os.O_CREATE | os.O_WRONLY | os.O_TRUNC, 0666)
-        if err != nil {
-            panic(err)
+    if *useCompress {
+        if *outputName == "-" {
+            out = os.Stdout
+        } else {
+            out, err = os.Open(*outputName, os.O_CREATE | os.O_WRONLY | os.O_TRUNC, 0666)
+            PanicIf(err)
+            defer out.Close()
         }
-        out = bufio.NewWriter(file)
-        defer func() {
-            out.Flush()
-            file.Close()
-        }()
+        PanicIf(gob.NewEncoder(out).Encode(headerMeta{getCompressionMethod()}))
     }
     for _, name := range flag.Args() {
-        file, err := os.Open(name, os.O_RDONLY, 0777)
-        if err != nil {
-            panic(err)
-        }
-        defer file.Close()
-        in := bufio.NewReader(file)
+        fmt.Print("loop")
+        in, err = os.Open(name, os.O_RDONLY, 0777)
+        PanicIf(err)
         if *useCompress {
-            compress(in, out, RLECompress)
+            PanicIf(gob.NewEncoder(out).Encode(commonMeta{name}))
+            compress(in, out, getCompressionMethod())
         } else {
-            rle.Extract(in, out)
+            var hmeta headerMeta
+            PanicIf(gob.NewDecoder(in).Decode(&hmeta))
+            fmt.Print("hmeta")
+            for !isEOF(in) {
+                var cmeta commonMeta
+                fmt.Print("cmeta")
+                PanicIf(gob.NewDecoder(in).Decode(&cmeta))
+                out, err = os.Open(cmeta.Name, os.O_CREATE | os.O_WRONLY | os.O_TRUNC, 0666)
+                PanicIf(err)
+                extract(in, out, hmeta.Method)
+            }
         }
+        in.Close()
     }
 }
