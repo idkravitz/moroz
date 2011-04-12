@@ -1,4 +1,5 @@
 #!/usr/bin/env perl
+
 use strict;
 use warnings;
 use feature "switch";
@@ -25,17 +26,17 @@ if (@ARGV == 1) {
 
 sub ltrim {
     my $string = shift;
-    $string =~ s/^\s+//;
+    $string =~ s/^[\s"']+//;
     return $string;
 }
 
 my $input = ltrim (join ' ', <STDIN>);
 my $decimals = '\d+';
 my $floats = '\d+\.\d+';
-my $signs = '[+*-\/^()]';
+my $signs = '[+*\-\/\^\(\)]';
 
 sub getNextToken {
-    if ($input =~ /^($decimals|$floats|$signs)/) {
+    if ($input =~ /^($floats|$decimals|$signs)/) {
         $input = ltrim substr($input, length($1));
         return $1;
     }
@@ -51,7 +52,7 @@ sub getPriority {
     given ($_) {
         when (/\(/) { return 0 ; }
         when (/\)/) { return 1; }
-        when (/[+-]/) { return 2; }
+        when (/[+\-]/) { return 2; }
         when (/[*\/]/) { return 3; }
         when (/\^/) { return 4; }
         when (/[mp]/) { return 5; }
