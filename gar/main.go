@@ -61,7 +61,6 @@ func extract (in *os.File, out *os.File, method CompressionMethod) {
         act = huffman.Extract
     }
     in.Seek(act(in, out), 0)
-    fmt.Println("seek")
 }
 
 func getCompressionMethod() CompressionMethod {
@@ -74,7 +73,6 @@ func getCompressionMethod() CompressionMethod {
 func isEOF(fin *os.File) bool {
     pos, err := fin.Seek(0, 1)
     PanicIf(err)
-    fmt.Printf("%d/%d", pos, GetFileSize(fin))
     return pos == GetFileSize(fin)
 }
 
@@ -104,20 +102,16 @@ func main() {
         PanicIf(gob.NewEncoder(out).Encode(headerMeta{getCompressionMethod()}))
     }
     for _, name := range flag.Args() {
-        fmt.Print("loop")
         in, err = os.Open(name, os.O_RDONLY, 0777)
         PanicIf(err)
         if *useCompress {
-            fmt.Print("Encoded")
             PanicIf(gob.NewEncoder(out).Encode(commonMeta{name}))
             compress(in, out, getCompressionMethod())
         } else {
             var hmeta headerMeta
             PanicIf(gob.NewDecoder(in).Decode(&hmeta))
-            fmt.Print("hmeta")
             for !isEOF(in) {
                 var cmeta commonMeta
-                fmt.Print("cmeta")
                 PanicIf(gob.NewDecoder(in).Decode(&cmeta))
                 out, err = os.Open(cmeta.Name, os.O_CREATE | os.O_WRONLY | os.O_TRUNC, 0666)
                 defer out.Close()

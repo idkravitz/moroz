@@ -91,7 +91,6 @@ func serializeMetaInfo(fin, fout *os.File, cb []cbRecord) {
         meta.Cb[k] = v
     }
     meta.Fsize = GetFileSize(fin)
-    fmt.Println(meta.Fsize)
     PanicIf(gob.NewEncoder(fout).Encode(meta))
 }
 
@@ -104,18 +103,21 @@ func Compress(fin, fout *os.File) {
         }
     }
     heap.Init(nodes)
-    for nodes.Len() > 1 {
-        l := heap.Pop(nodes).(*node)
-        r := heap.Pop(nodes).(*node)
-        parent := &node{count: l.count + r.count, left: l, right: r}
-        heap.Push(nodes, parent)
-    }
     var cb codeBook
-    tree := (*nodes)[0]
-    makeCodeBook(tree, 0, 0, cb[:])
+    if nodes.Len() != 1 {
+        for nodes.Len() > 1 {
+            l := heap.Pop(nodes).(*node)
+            r := heap.Pop(nodes).(*node)
+            parent := &node{count: l.count + r.count, left: l, right: r}
+            heap.Push(nodes, parent)
+        }
+        tree := (*nodes)[0]
+        makeCodeBook(tree, 0, 0, cb[:])
+    } else {
+       cb[(*nodes)[0].val] = cbRecord{Len: 1, Code: 0}
+    }
 
     serializeMetaInfo(fin, fout, cb[:])
-    fmt.Println(GetSeek(fout))
 
     // encode
     var (
@@ -145,7 +147,8 @@ func Compress(fin, fout *os.File) {
             }
         }
     }
-    if outbyte != 0 {
+    fmt.Println(outlen)
+    if outlen != 0 {
         out.WriteByte(outbyte)
     }
 }
@@ -169,8 +172,7 @@ func Extract(fin, fout *os.File) int64 {
         cursize, readBytes int64 = 0, 0
     )
     filesize, db := deserializeMetaInfo(fin, fout)
-    pos := GetSeek(fout)
-    fmt.Print(pos)
+    pos := GetSeek(fin)
 
     in := bufio.NewReader(fin)
     out := bufio.NewWriter(fout)
@@ -179,7 +181,6 @@ func Extract(fin, fout *os.File) int64 {
     for cursize < filesize {
         curr, error := in.ReadByte()
         if error != nil {
-            fmt.Print("break")
             break
         }
         readBytes++
@@ -187,8 +188,8 @@ func Extract(fin, fout *os.File) int64 {
             if (curr & (1 << i)) != 0 {
                 code |= 1 << code_len
             }
-            code_len++
             outptr = db[code]
+            code_len++
             if outptr != nil && outptr.len == code_len && cursize < filesize {
                 out.WriteByte(outptr.char)
                 cursize++
@@ -196,7 +197,5 @@ func Extract(fin, fout *os.File) int64 {
             }
         }
     }
-    fmt.Println(pos)
-    fmt.Println(readBytes)
     return pos + readBytes
 }
