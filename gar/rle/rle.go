@@ -2,7 +2,6 @@ package rle
 
 import (
     "os"
-    "fmt"
     "gob"
     "bufio"
 )
@@ -23,7 +22,6 @@ func Compress(fin *os.File, fout *os.File) {
     )
 
     PanicIf(gob.NewEncoder(fout).Encode(rleMeta{GetFileSize(fin)}))
-    fmt.Println(GetSeek(fin))
 
     in := bufio.NewReader(fin)
     out := bufio.NewWriter(fout)

@@ -2,7 +2,6 @@ package huffman
 
 import (
     "os"
-    "fmt"
     "gob"
     "bufio"
     "container/heap"
@@ -149,7 +148,6 @@ func Compress(fin, fout *os.File) {
             }
         }
     }
-    fmt.Println(outlen)
     if outlen != 0 {
         out.WriteByte(outbyte)
     }
