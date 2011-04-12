@@ -84,7 +84,7 @@ func makeCodeBook(node *node, len, code uint, cb []cbRecord) {
     }
 }
 
-func serializeMetaInfo(fin, fout *os.File, cb []cbRecord) {
+func putMetaInfo(fin, fout *os.File, cb []cbRecord) {
     var meta nMeta
     meta.Cb = make([]cbRecord, 256)
     for k, v := range cb {
@@ -94,7 +94,7 @@ func serializeMetaInfo(fin, fout *os.File, cb []cbRecord) {
     PanicIf(gob.NewEncoder(fout).Encode(meta))
 }
 
-func Compress(fin, fout *os.File) {
+func initCodeBook(fin, fout *os.File) codeBook {
     nodes := new(nHeap)
     freqs := countFreqs(fin)
     for b, f := range freqs {
@@ -116,14 +116,16 @@ func Compress(fin, fout *os.File) {
     } else {
        cb[(*nodes)[0].val] = cbRecord{Len: 1, Code: 0}
     }
+    return cb
+}
 
-    serializeMetaInfo(fin, fout, cb[:])
-
-    // encode
+func Compress(fin, fout *os.File) {
     var (
         outbyte, outlen byte = 0, 0
-        i uint = 0
     )
+
+    cb := initCodeBook(fin, fout)
+    putMetaInfo(fin, fout, cb[:])
     in := bufio.NewReader(fin)
     out := bufio.NewWriter(fout)
     defer out.Flush()
@@ -134,7 +136,7 @@ func Compress(fin, fout *os.File) {
             break
         }
         record := cb[inbyte]
-        for i = 0; i < record.Len; {
+        for i := uint(0); i < record.Len; {
             for ; i < record.Len && outlen < 8; i++ {
                 if (record.Code & (1 << i)) != 0 {
                     outbyte |= 1 << outlen
@@ -153,7 +155,7 @@ func Compress(fin, fout *os.File) {
     }
 }
 
-func deserializeMetaInfo(fin, fout *os.File) (int64, decodeBook) {
+func obtainMetaInfo(fin, fout *os.File) (int64, decodeBook) {
     var meta nMeta
     PanicIf(gob.NewDecoder(fin).Decode(&meta))
     db := make(decodeBook)
@@ -171,7 +173,7 @@ func Extract(fin, fout *os.File) int64 {
         outptr *dbRecord= nil
         cursize, readBytes int64 = 0, 0
     )
-    filesize, db := deserializeMetaInfo(fin, fout)
+    filesize, db := obtainMetaInfo(fin, fout)
     pos := GetSeek(fin)
 
     in := bufio.NewReader(fin)

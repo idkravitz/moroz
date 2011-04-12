@@ -15,11 +15,12 @@ type (
     }
 )
 
-
 func Compress(fin *os.File, fout *os.File) {
-    var curr, prev, count byte = 0, 0, 0
-    found := false
-    var error os.Error = nil
+    var (
+        curr, prev, count byte = 0, 0, 0
+        found bool = false
+        error os.Error = nil
+    )
 
     PanicIf(gob.NewEncoder(fout).Encode(rleMeta{GetFileSize(fin)}))
     fmt.Println(GetSeek(fin))
@@ -70,7 +71,7 @@ func Extract(fin *os.File, fout *os.File) int64 {
         curr, error = in.ReadByte()
         if error != nil {
             if found {
-                panic("Archive corrupted")
+                panic("Damaged archive")
             }
             break
         }

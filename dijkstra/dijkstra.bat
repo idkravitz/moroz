@@ -1,2 +1,2 @@
 @echo off
-perl main.pl %*
+perl dijkstra.pl %*

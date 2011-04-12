@@ -5,6 +5,7 @@ import (
     "gob"
     "fmt"
     "flag"
+    "path"
 )
 
 import (
@@ -63,11 +64,29 @@ func extract (in *os.File, out *os.File, method CompressionMethod) {
     in.Seek(act(in, out), 0)
 }
 
+func panicHandler() {
+    if error := recover(); error != nil {
+        fmt.Printf("Error: %s", error)
+    }
+}
+
 func getCompressionMethod() CompressionMethod {
     if *useRLE {
         return RLECompress
     }
     return HuffmanCompress
+}
+
+func openForWrite(name string) *os.File {
+    out, err := os.Open(name, os.O_CREATE | os.O_WRONLY | os.O_TRUNC, 0666)
+    PanicIf(err)
+    return out
+}
+
+func openForRead(name string) *os.File {
+    in, err := os.Open(name, os.O_RDONLY, 0777)
+    PanicIf(err)
+    return in
 }
 
 func isEOF(fin *os.File) bool {
@@ -77,35 +96,28 @@ func isEOF(fin *os.File) bool {
 }
 
 func main() {
-    defer func() {
-        if error := recover(); error != nil {
-            fmt.Printf("Error: %s", error)
-        }
-    }()
+    defer panicHandler();
 
-    var err os.Error
     var in, out *os.File
     flag.Parse()
-    if flag.NArg() == 0 ||
-        (!*useCompress && !*useExtract || *useCompress && *useExtract) ||
-        (!*useHuffman  && !*useRLE     || *useHuffman  && *useRLE) {
+    if flag.NArg() == 0 || (!*useCompress && !*useExtract || *useCompress && *useExtract) ||
+        *useCompress && (!*useHuffman  && !*useRLE || *useHuffman  && *useRLE) {
         printUsage()
     }
     if *useCompress {
         if *outputName == "-" {
             out = os.Stdout
         } else {
-            out, err = os.Open(*outputName, os.O_CREATE | os.O_WRONLY | os.O_TRUNC, 0666)
-            PanicIf(err)
+            out = openForWrite(*outputName)
             defer out.Close()
         }
         PanicIf(gob.NewEncoder(out).Encode(headerMeta{getCompressionMethod()}))
     }
     for _, name := range flag.Args() {
-        in, err = os.Open(name, os.O_RDONLY, 0777)
-        PanicIf(err)
+        in = openForRead(name)
+        defer in.Close()
         if *useCompress {
-            PanicIf(gob.NewEncoder(out).Encode(commonMeta{name}))
+            PanicIf(gob.NewEncoder(out).Encode(commonMeta{path.Base(name)}))
             compress(in, out, getCompressionMethod())
         } else {
             var hmeta headerMeta
@@ -113,12 +125,10 @@ func main() {
             for !isEOF(in) {
                 var cmeta commonMeta
                 PanicIf(gob.NewDecoder(in).Decode(&cmeta))
-                out, err = os.Open(cmeta.Name, os.O_CREATE | os.O_WRONLY | os.O_TRUNC, 0666)
+                out = openForWrite(cmeta.Name)
                 defer out.Close()
-                PanicIf(err)
                 extract(in, out, hmeta.Method)
             }
         }
-        in.Close()
     }
 }
