@@ -27,21 +27,53 @@ if (@ARGV == 1) {
 sub ltrim {
     my $string = shift;
     $string =~ s/^[\s"']+//;
-    return $string;
+    $string;
 }
 
-my $input = ltrim (join ' ', <STDIN>);
+my $input = ltrim(join ' ', <STDIN>);
 my $decimals = '\d+';
 my $floats = '\d+\.\d+';
+my $binops = '[+*\-\/\^]';
 my $signs = '[+*\-\/\^\(\)]';
 
+my @tokenbuf;
 sub getNextToken {
+    if (@tokenbuf) {
+        return pop @tokenbuf;
+    }
+    unless ($input) {
+        return "EOF";
+    }
     if ($input =~ /^($floats|$decimals|$signs)/) {
         $input = ltrim substr($input, length($1));
         return $1;
     }
+    die "Unrecognized token: $input";
+}
+
+sub is_operand {
+    my ($t, $needCloseParenthesis);
+    $t = getNextToken();
+    if ($t ~~ ["+","-"]) {
+        is_operand();
+    }
+    elsif ($t eq "(") {
+        is_expression();
+        ($t = getNextToken()) eq ")" || die "Parenthesis mismatch, meet $t";
+    }
     else {
-        die "Unrecognized token: " . $input;
+        $t !~ $floats && $t !~ $decimals && die "Expected operand, meet $t";
+    }
+}
+
+sub is_expression {
+    is_operand();
+    my $t = getNextToken();
+    if ($t =~ $binops) {
+        is_expression();
+    }
+    elsif ($t ne "EOF") {
+        push @tokenbuf, $t;
     }
 }
 
@@ -72,6 +104,11 @@ sub deobfuscate {
     $_ =~ tr/mp/-+/;
     return $_;
 }
+
+my $input_copy = $input;
+is_expression();
+($input || @tokenbuf) && die "Junk after expression: " . (pop @tokenbuf) . $input;
+$input = $input_copy;
 
 my $last_was_operation = 1;
 my @outstack;
@@ -121,3 +158,4 @@ foreach my $elm (@outstack) {
     }
 }
 print "= $calcstack[-1]";
+
