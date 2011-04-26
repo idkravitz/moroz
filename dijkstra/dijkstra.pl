@@ -1,5 +1,4 @@
 #!/usr/bin/env perl
-
 use strict;
 use warnings;
 use feature "switch";
@@ -52,8 +51,7 @@ sub getNextToken {
 }
 
 sub is_operand {
-    my ($t, $needCloseParenthesis);
-    $t = getNextToken();
+    my $t = getNextToken();
     if ($t ~~ ["+","-"]) {
         is_operand();
     }
@@ -61,8 +59,8 @@ sub is_operand {
         is_expression();
         ($t = getNextToken()) eq ")" || die "Parenthesis mismatch, meet $t";
     }
-    else {
-        $t !~ $floats && $t !~ $decimals && die "Expected operand, meet $t";
+    elsif ($t !~ $floats && $t !~ $decimals) {
+        die "Expected operand, meet $t";
     }
 }
 
@@ -93,7 +91,7 @@ sub getPriority {
 
 sub isLeftAssoc {
     $_ = shift;
-    if ($_ ~~ ["m","^"]) {
+    if ($_ ~~ ["p","m","^"]) {
         return 0;
     }
     return 1;
@@ -143,7 +141,7 @@ while (length $input) {
         push(@stack, $t)
     }
 }
-push @outstack, deobfuscate pop @stack until @stack == 0;
+push @outstack, deobfuscate pop @stack if @stack;
 
 my @calcstack;
 foreach my $elm (@outstack) {
@@ -153,8 +151,12 @@ foreach my $elm (@outstack) {
     } else {
         my $v2 = pop(@calcstack);
         my $v1 = pop(@calcstack);
+        my $res;
         $elm =~ s/\^/**/;
-        push @calcstack, eval("($v1) $elm ($v2)");
+        unless(defined ($res = eval "($v1) $elm ($v2)")) {
+            die $@;
+        }
+        push @calcstack, $res;
     }
 }
 print "= $calcstack[-1]";
